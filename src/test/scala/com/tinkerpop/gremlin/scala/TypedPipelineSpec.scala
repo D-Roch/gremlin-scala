@@ -1,18 +1,62 @@
 package com.tinkerpop.gremlin.scala
 
-import com.tinkerpop.blueprints.impls.tg.TinkerGraphFactory
 import org.scalatest.FunSpec
 import org.scalatest.matchers.ShouldMatchers
-import com.tinkerpop.blueprints._
-import com.tinkerpop.blueprints.impls.tg.TinkerGraph
-import scala.collection.JavaConversions._
 
 import shapeless._
 import syntax.std.traversable._
 import ops.traversable.FromTraversable
 import ops.hlist._
 
-class TypedPipelineSpec extends FunSpec with ShouldMatchers with TestGraph {
+class TypedPipelineSpec extends FunSpec with ShouldMatchers {
+
+  it("integrates with T3") {
+    import com.tinkerpop.blueprints.Edge
+    import com.tinkerpop.blueprints.Vertex
+    import com.tinkerpop.gremlin.pipes.MapPipe
+    import com.tinkerpop.gremlin.pipes.util.Holder
+    import com.tinkerpop.gremlin.pipes.{Pipe ⇒ GremlinPipe, Pipeline ⇒ GremlinPipeline}
+    import com.tinkerpop.blueprints.Direction
+    import java.util.function.{Function ⇒ JFunction}
+
+    val gremlinPipeline: GremlinPipeline[Nothing, Nothing] = ???
+    // need to wrap GremlinPipe into Pipe for type variance of I
+    implicit class Pipe[-I,O](pipe: GremlinPipe[I,O])
+
+    // H is the out type of the _last_ pipe, i.e. the result type of the whole pipeline!
+    case class Pipeline[H, T <: HList](pipes: Pipe[_, H] :: T) {
+      type CurrentPipes = Pipe[_, H] :: T
+    }
+    implicit class EdgeSteps[H <: Edge, T <: HList](pipeline: Pipeline[H, T])
+      extends Pipeline[H, T](pipeline.pipes) {
+
+      def inV: Pipeline[Vertex, CurrentPipes] = {
+        def func = new JFunction[Holder[Edge], Vertex] {
+          override def apply(h: Holder[Edge]): Vertex = h.get.getVertex(Direction.IN)
+        }
+        val inVPipe: Pipe[Edge, Vertex] = new MapPipe[Edge, Vertex](gremlinPipeline, func)
+        addPipe(pipes, inVPipe)
+      }
+    }
+
+
+
+    def startPipeline[H,T](pipe: Pipe[H,T]) = Pipeline(pipe :: HNil)
+    //H1: the old end type of the pipeline
+    //H2: the new end type of the pipeline
+    def addPipe[H2, H1, T <: HList](
+      pipes: Pipe[_, H1] :: T, 
+      next: Pipe[H1, H2]): Pipeline[H2, Pipe[_, H1] :: T] = Pipeline(next :: pipes)
+    //def addPipe[H2, H1, T <: HList](
+      //pipes: Pipe[_, H1] :: T,
+      //pipeConstr: Iterator[H1] ⇒ Pipe[H1, H2]): Pipeline[H2, Pipe[_, H1] :: T] = {
+        ////val next = pipeConstr(pipes.head.iter)
+        //val next: Pipe[H1, H2] = ???
+        //Pipeline(next :: pipes)
+    //}
+
+
+  }
 
   it("fifth try: pipes as hlist") {
     trait Element { def id: Int }
@@ -244,53 +288,53 @@ class TypedPipelineSpec extends FunSpec with ShouldMatchers with TestGraph {
 }
 
 
-  ignore("first try") {
-    sealed trait Pipe {
-      type Head // <: Pipeline //idea: have Pipeline[Vertex]?
-      type Tail <: Pipe
+  //ignore("first try") {
+    //sealed trait Pipe {
+      //type Head // <: Pipeline //idea: have Pipeline[Vertex]?
+      //type Tail <: Pipe
 
-      def get: Head
-    }
+      //def get: Head
+    //}
 
-    final case class VertexPipe extends Pipe {
-      type Head = Vertex
-      //def out: TypedPipe[S, Vertex] = ???
-      //def outE: TypedPipe[S, Edge] = ???
-      override def get = ???
-    }
+    //final case class VertexPipe extends Pipe {
+      //type Head = Vertex
+      ////def out: TypedPipe[S, Vertex] = ???
+      ////def outE: TypedPipe[S, Edge] = ???
+      //override def get = ???
+    //}
 
-    sealed class PipeNil extends Pipe{
-      type Head = Unit
-      type Tail = PipeNil
+    //sealed class PipeNil extends Pipe{
+      //type Head = Unit
+      //type Tail = PipeNil
 
-      override def get = Unit
-    }
+      //override def get = Unit
+    //}
 
-    sealed trait HList {
-      type Head
-      type Tail <: HList
-    }
+    //sealed trait HList {
+      //type Head
+      //type Tail <: HList
+    //}
 
-    sealed class HNil extends HList {
-      type Head = Nothing
-      type Tail = HNil
-      def ::[T](v : T) = HCons(v, this)
-    }
-    case object HNil extends HNil
+    //sealed class HNil extends HList {
+      //type Head = Nothing
+      //type Tail = HNil
+      //def ::[T](v : T) = HCons(v, this)
+    //}
+    //case object HNil extends HNil
 
-    final case class HCons[H, T <: HList](head : H, tail : T) extends HList {
-      type Head = H
-      type Tail = T
-      def ::[T](v : T) = HCons(v, this)
+    //final case class HCons[H, T <: HList](head : H, tail : T) extends HList {
+      //type Head = H
+      //type Tail = T
+      //def ::[T](v : T) = HCons(v, this)
       
-      //type Fun[T] = H => tail.Fun[T]
-      //def apply[T](f: Fun[T]): T = tail( f(head) )
+      ////type Fun[T] = H => tail.Fun[T]
+      ////def apply[T](f: Fun[T]): T = tail( f(head) )
 
-      //override def toString = head + " :: " + tail
-    }
+      ////override def toString = head + " :: " + tail
+    //}
 
-    val p = new VertexPipe
-    println(p)
-  }
+    //val p = new VertexPipe
+    //println(p)
+  //}
 
 }
